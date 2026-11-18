@@ -1,0 +1,17 @@
+appId: fit.sigap.app.staging
+---
+- extendedWaitUntil:
+    visible: "Mulai tugas"
+    timeout: 30000
+- tapOn: "Pindai QR absen"
+- extendedWaitUntil:
+    visible: "Kamera tidak diizinkan.*"
+    timeout: 10000
+- tapOn:
+    text: "Atau ketik kode 6 angka"
+    index: 1
+- inputText: "${CODE}"
+- tapOn: "Absen"
+- extendedWaitUntil:
+    visible: "WILAYAH TUGAS|Sedang bertugas"
+    timeout: 30000

@@ -1,0 +1,29 @@
+appId: fit.sigap.app.staging
+name: nurse_alert_escalate
+---
+- launchApp:
+    stopApp: false
+- extendedWaitUntil:
+    visible: "${LOCATION}"
+    timeout: 30000
+- tapOn:
+    text: "${LOCATION}"
+    retryTapIfNoChange: false
+- extendedWaitUntil:
+    visible: "Cek pasien"
+    timeout: 10000
+- tapOn:
+    text: "Cek pasien"
+    retryTapIfNoChange: false
+- extendedWaitUntil:
+    visible:
+      text: "Panggil Code Blue"
+      enabled: true
+    timeout: 15000
+- tapOn: "Panggil Code Blue"
+- tapOn: "Panggil sekarang"
+- extendedWaitUntil:
+    visible: "Code Blue dipanggil"
+    timeout: 15000
+- assertNotVisible: "Saya menuju lokasi"
+- tapOn: "Siaga"

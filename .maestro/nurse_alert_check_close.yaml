@@ -1,0 +1,29 @@
+appId: fit.sigap.app.staging
+name: nurse_alert_check_close
+---
+- launchApp:
+    stopApp: false
+- extendedWaitUntil:
+    visible: "${LOCATION}"
+    timeout: 30000
+- tapOn:
+    text: "${LOCATION}"
+    retryTapIfNoChange: false
+- extendedWaitUntil:
+    visible: "Cek pasien"
+    timeout: 10000
+- tapOn:
+    text: "Cek pasien"
+    retryTapIfNoChange: false
+- extendedWaitUntil:
+    visible:
+      text: "Tidak kritis"
+      enabled: true
+    timeout: 15000
+- tapOn: "Tidak kritis"
+- tapOn: "Tutup alert"
+- extendedWaitUntil:
+    visible: "Alert ditutup: pasien dinilai tidak kritis."
+    timeout: 15000
+- assertNotVisible: "Panggil Code Blue"
+- tapOn: "Siaga"

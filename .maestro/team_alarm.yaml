@@ -1,0 +1,25 @@
+appId: fit.sigap.app.staging
+name: team_alarm
+---
+- extendedWaitUntil:
+    visible: "${TITLE}"
+    timeout: 30000
+- tapOn:
+    text: "${TITLE}"
+    retryTapIfNoChange: false
+- extendedWaitUntil:
+    visible: "Saya menuju lokasi"
+    timeout: 15000
+- assertVisible: "Code Blue"
+- assertVisible: "${LOCATION}"
+- tapOn:
+    text: "Saya menuju lokasi"
+    retryTapIfNoChange: false
+- extendedWaitUntil:
+    visible: "Tercatat menuju lokasi.*"
+    timeout: 20000
+- assertNotVisible: "Saya menuju lokasi"
+- tapOn:
+    text: "Lihat detail"
+    retryTapIfNoChange: false
+- runFlow: common/team_finish_incident.yaml

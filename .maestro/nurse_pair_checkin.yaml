@@ -1,0 +1,25 @@
+appId: fit.sigap.app.staging
+name: nurse_pair_checkin
+---
+- runFlow: common/finish_setup_and_check_in.yaml
+- assertVisible: "${NAME}"
+- assertVisible: "${WARD}"
+- assertVisible: "Siaga"
+- assertVisible: "Akun"
+- tapOn: "Akun"
+- extendedWaitUntil:
+    visible: "Selesai bertugas"
+    timeout: 10000
+- tapOn: "Selesai bertugas"
+- runFlow:
+    when:
+      visible: "Tetap selesai"
+    commands:
+      - tapOn: "Tetap selesai"
+- runFlow: common/check_in.yaml
+- assertVisible: "Sedang bertugas"
+- assertVisible: "${WARD}"
+- tapOn: "Siaga"
+- extendedWaitUntil:
+    visible: "WILAYAH TUGAS"
+    timeout: 10000

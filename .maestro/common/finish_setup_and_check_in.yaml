@@ -1,0 +1,11 @@
+appId: fit.sigap.app.staging
+---
+- extendedWaitUntil:
+    visible: "Terpasang untuk ${NAME}"
+    timeout: 60000
+- tapOn: "Izinkan notifikasi"
+- extendedWaitUntil:
+    visible: "Buka pengaturan baterai"
+    timeout: 15000
+- tapOn: "Buka pengaturan baterai"
+- runFlow: check_in.yaml

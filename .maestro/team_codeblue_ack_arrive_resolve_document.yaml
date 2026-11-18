@@ -1,0 +1,13 @@
+appId: fit.sigap.app.staging
+name: team_codeblue_ack_arrive_resolve_document
+---
+- launchApp:
+    stopApp: false
+- extendedWaitUntil:
+    visible: "CODE BLUE"
+    timeout: 30000
+- assertVisible: "${LOCATION}"
+- tapOn:
+    text: "Saya menuju lokasi"
+    retryTapIfNoChange: false
+- runFlow: common/team_finish_incident.yaml
