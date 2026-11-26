@@ -72,6 +72,7 @@ val SigapTypography = Typography(
 
 @Immutable
 data class SigapDataTypography(
+    val timer: TextStyle,
     val xl: TextStyle,
     val lg: TextStyle,
     val md: TextStyle,
@@ -87,6 +88,7 @@ private fun dataStyle(size: Int, line: Int) = BaseStyle.copy(
 )
 
 val DefaultDataTypography = SigapDataTypography(
+    timer = dataStyle(40, 44),
     xl = dataStyle(24, 30),
     lg = dataStyle(18, 24),
     md = dataStyle(16, 24),

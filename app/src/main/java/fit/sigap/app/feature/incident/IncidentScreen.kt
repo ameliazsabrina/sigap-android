@@ -67,6 +67,7 @@ fun IncidentScreen(
     onArrive: () -> Unit,
     onResolve: () -> Unit,
     onDocument: () -> Unit,
+    onOpenResusLog: (() -> Unit)? = null,
 ) {
     val colors = SigapTheme.colors
     AppScreen {
@@ -128,6 +129,16 @@ fun IncidentScreen(
                 text = "Panggilan ini ditangani Tim Code Blue. Tombol respons tidak ditampilkan untuk peran Anda.",
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.ink700,
+            )
+        }
+
+        if (onOpenResusLog != null) {
+            SigapButton(
+                text = "Log tindakan resusitasi",
+                onClick = onOpenResusLog,
+                variant = ButtonVariant.Secondary,
+                size = ButtonSize.Large,
+                fullWidth = true,
             )
         }
 

@@ -33,7 +33,17 @@ import fit.sigap.app.core.device.openSettings
 import fit.sigap.app.core.format.formatDateTime
 import fit.sigap.app.core.model.DocumentationValues
 import fit.sigap.app.core.model.DutyRole
+import fit.sigap.app.core.model.Incident
+import fit.sigap.app.core.model.IncidentStatus
 import fit.sigap.app.core.model.PatientVitals
+import fit.sigap.app.core.model.ResusAction
+import fit.sigap.app.core.model.CodeBlueForm
+import fit.sigap.app.core.model.ResusSheet
+import fit.sigap.app.core.model.draftFromResusLog
+import fit.sigap.app.core.model.toSheet
+import kotlinx.coroutines.flow.first
+import java.time.ZoneId
+import fit.sigap.app.core.model.Rhythm
 import fit.sigap.app.core.model.activeSorted
 import fit.sigap.app.core.model.firstWaiting
 import fit.sigap.app.core.model.openSorted
@@ -61,6 +71,12 @@ import fit.sigap.app.feature.pair.PairRoute
 import fit.sigap.app.feature.pair.PairViewModel
 import fit.sigap.app.feature.readiness.PushTestUiState
 import fit.sigap.app.feature.readiness.ReadinessScreen
+import fit.sigap.app.feature.resus.ResusAccess
+import fit.sigap.app.feature.resus.ResusFinish
+import fit.sigap.app.feature.resus.ResusLogActions
+import fit.sigap.app.feature.resus.ResusLogScreen
+import fit.sigap.app.feature.resus.ResusLogUiState
+import fit.sigap.app.feature.resus.ResusLogViewModel
 import fit.sigap.app.feature.standby.NurseStandbyActions
 import fit.sigap.app.feature.standby.NurseStandbyScreen
 import fit.sigap.app.feature.standby.NurseStandbyUiState
@@ -78,8 +94,10 @@ import java.time.Instant
 @Serializable private data class IncidentRoute(val id: String)
 @Serializable private data class DocumentationRoute(val id: String)
 @Serializable private data class AlertRoute(val id: String)
+@Serializable private data class ResusLogRoute(val id: String)
 
 private const val VITALS_POLL_MS = 10_000L
+private const val RESUS_TICK_MS = 1_000L
 
 @Composable
 fun AppRoot(container: AppContainer, debugPairingQr: String? = null) {
@@ -215,7 +233,21 @@ private fun DutyNavigation(container: AppContainer, user: SessionUser) {
                     onArrive = { viewModel.arrive(id) },
                     onResolve = { viewModel.resolve(id) },
                     onDocument = { nav.navigate(DocumentationRoute(id)) },
+                    onOpenResusLog = if (BuildConfig.RESUS_LOG_ENABLED && incident.isAcknowledged) {
+                        { nav.navigate(ResusLogRoute(id)) }
+                    } else {
+                        null
+                    },
                 )
+            }
+        }
+        composable<ResusLogRoute> { entry ->
+            val id = entry.toRoute<ResusLogRoute>().id
+            val incident = state.incidents.firstOrNull { it.id == id }
+            if (incident == null) {
+                NotFound("Incident", state, nav)
+            } else {
+                ResusLog(container, user, incident, state, viewModel, nav)
             }
         }
         composable<DocumentationRoute> { entry ->
@@ -228,9 +260,17 @@ private fun DutyNavigation(container: AppContainer, user: SessionUser) {
                     factory = factoryOf { DocumentationViewModel(id, container.documentation, viewModel::retry) },
                 )
                 val doc by documentation.state.collectAsStateWithLifecycle()
+                val logSheet by produceState<LogSheet>(if (BuildConfig.RESUS_LOG_ENABLED) LogSheet.Loading else LogSheet.Ready(null), id) {
+                    if (value is LogSheet.Ready) return@produceState
+                    try {
+                        container.resusLog.refresh(id)
+                    } catch (_: ApiException) {
+                    }
+                    value = LogSheet.Ready(container.resusLog.observe(id).first().entries.toSheet())
+                }
                 val loadError = doc.loadError
                 when {
-                    doc.loading -> AppScreen {
+                    doc.loading || logSheet == LogSheet.Loading -> AppScreen {
                         BackLink("Incident", nav::popBackStack)
                         LoadingState(label = "Memuat dokumentasi")
                     }
@@ -240,6 +280,9 @@ private fun DutyNavigation(container: AppContainer, user: SessionUser) {
                     }
                     else -> key(doc.generation) {
                         val latest = doc.latest
+                        val sheet = (logSheet as? LogSheet.Ready)?.sheet
+                        val drafted = latest == null && sheet != null &&
+                            CodeBlueForm().draftFromResusLog(sheet, ZoneId.systemDefault()) != CodeBlueForm()
                         DocumentationScreen(
                             state = DocumentationUiState(
                                 incident = incident,
@@ -255,8 +298,11 @@ private fun DutyNavigation(container: AppContainer, user: SessionUser) {
                                 message = doc.message,
                                 error = doc.error,
                                 versionConflict = doc.conflict,
+                                draftedFromLog = drafted,
                             ),
-                            initialValues = latest?.values ?: DocumentationValues(),
+                            initialValues = latest?.values ?: DocumentationValues().let { empty ->
+                                if (sheet == null) empty else empty.copy(form = empty.form.draftFromResusLog(sheet, ZoneId.systemDefault()))
+                            },
                             actions = object : DocumentationActions {
                                 override fun onBack() {
                                     nav.popBackStack()
@@ -311,6 +357,85 @@ private fun DutyNavigation(container: AppContainer, user: SessionUser) {
             }
         }
     }
+}
+
+@Composable
+private fun ResusLog(
+    container: AppContainer,
+    user: SessionUser,
+    incident: Incident,
+    state: DutyState,
+    duty: DutyViewModel,
+    nav: NavHostController,
+) {
+    val log: ResusLogViewModel = viewModel(
+        factory = factoryOf { ResusLogViewModel(incident.id, user, container.resusLog, container.serverClock::now) },
+    )
+    val logState by log.state.collectAsStateWithLifecycle()
+    val outboxError by container.resusOutbox.lastError.collectAsStateWithLifecycle()
+    val now by produceState(container.serverClock.now()) {
+        while (true) {
+            delay(RESUS_TICK_MS)
+            value = container.serverClock.now()
+        }
+    }
+    LifecycleStartEffect(log) {
+        log.startPolling()
+        onStopOrDispose { log.stopPolling() }
+    }
+    val team = user.role == DutyRole.CODE_BLUE_TEAM
+    ResusLogScreen(
+        state = ResusLogUiState(
+            locationName = incident.location.name,
+            t0 = incident.createdAt,
+            log = logState,
+            access = resusAccess(team, incident),
+            outboxError = outboxError,
+            canMarkArrived = team && incident.status == IncidentStatus.ACKNOWLEDGED && incident.arrivedAt == null,
+            arrivePhase = state.phases[incident.id] ?: CommandPhase.Idle,
+            finish = if (team) resusFinish(incident) else null,
+            resolvePhase = state.phases[incident.id] ?: CommandPhase.Idle,
+        ),
+        now = now,
+        actions = object : ResusLogActions {
+            override fun onBack() {
+                nav.popBackStack()
+            }
+            override fun onRhythm(rhythm: Rhythm) = log.recordRhythm(rhythm)
+            override fun onRecord(action: ResusAction) = log.record(action)
+            override fun onConfirmPrompt() = log.confirmPrompt()
+            override fun onDismissPrompt() = log.dismissPrompt()
+            override fun onUndo() = log.undo()
+            override fun onRequestVoid(entryId: String) = log.requestVoid(entryId)
+            override fun onArrive() = duty.arrive(incident.id)
+            override fun onResolve() = duty.resolve(incident.id)
+            override fun onDocument() {
+                nav.navigate(DocumentationRoute(incident.id))
+            }
+            override fun onRetry() = log.retry()
+        },
+    )
+}
+
+private sealed interface LogSheet {
+    data object Loading : LogSheet
+
+    data class Ready(val sheet: ResusSheet?) : LogSheet
+}
+
+private fun resusFinish(incident: Incident): ResusFinish? = when {
+    incident.isClosed -> ResusFinish.VIEW_DOCUMENTATION
+    incident.awaitsDocumentation -> ResusFinish.DOCUMENT
+    incident.status != IncidentStatus.ACKNOWLEDGED -> null
+    incident.arrivedAt == null -> ResusFinish.ARRIVE_FIRST
+    else -> ResusFinish.RESOLVE
+}
+
+private fun resusAccess(team: Boolean, incident: Incident): ResusAccess = when {
+    !team -> ResusAccess.ReadOnly("Hak perawat menulis log belum ditetapkan. Log hanya dapat dibaca.")
+    incident.status == IncidentStatus.ACKNOWLEDGED -> ResusAccess.Write
+    incident.isHandled -> ResusAccess.ReadOnly("Log ditutup karena respons sudah dinyatakan selesai.")
+    else -> ResusAccess.ReadOnly("Log dapat ditulis setelah ada yang menuju lokasi.")
 }
 
 @Composable

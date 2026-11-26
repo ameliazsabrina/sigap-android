@@ -8,7 +8,11 @@ import com.google.firebase.installations.FirebaseInstallations
 import fit.sigap.app.core.alarm.AlarmRegistry
 import fit.sigap.app.core.data.DocumentationRepository
 import fit.sigap.app.core.data.DutyRepository
+import fit.sigap.app.core.data.ResusLogRepository
+import fit.sigap.app.core.data.ResusOutbox
+import fit.sigap.app.core.database.ResusDatabase
 import fit.sigap.app.core.device.ReadinessReader
+import fit.sigap.app.core.network.ServerClock
 import fit.sigap.app.core.network.createAuthApi
 import fit.sigap.app.core.network.createSigapApi
 import fit.sigap.app.core.push.AlertNotifier
@@ -18,22 +22,29 @@ import fit.sigap.app.core.push.PushRepository
 import fit.sigap.app.core.push.SigapMessagingService
 import fit.sigap.app.core.session.KeystoreTokenStore
 import fit.sigap.app.core.session.SessionRepository
+import fit.sigap.app.core.session.SessionState
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.map
 
 class AppContainer(application: Application) {
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     val session = SessionRepository(createAuthApi(BuildConfig.API_BASE_URL), KeystoreTokenStore(application))
-    private val api = createSigapApi(BuildConfig.API_BASE_URL, session)
+    val serverClock = ServerClock()
+    private val api = createSigapApi(BuildConfig.API_BASE_URL, session, serverClock)
     val duty = DutyRepository(api)
     val documentation = DocumentationRepository(api)
     val readiness = ReadinessReader(application)
     val push = PushRepository(api, FirebasePushTokenSource)
     val alerts = AlertNotifier(application)
     val alarms = AlarmRegistry()
+    val resusLog by lazy { ResusLogRepository(api, ResusDatabase.create(application).resus(), serverClock) }
+    val resusOutbox by lazy {
+        ResusOutbox(resusLog, session.state.map { (it as? SessionState.Active)?.user?.id }, appScope)
+    }
     val pushRegistrar = PushRegistrar(
         session,
         push,
@@ -67,6 +78,7 @@ class SigapApplication : Application() {
         super.onCreate()
         container.alerts.ensureChannels()
         container.pushRegistrar.start()
+        if (BuildConfig.RESUS_LOG_ENABLED) container.resusOutbox.start()
         if (BuildConfig.DEBUG) {
             FirebaseInstallations.getInstance().id
                 .addOnSuccessListener { Log.d(SigapMessagingService.TAG, "fid=$it") }

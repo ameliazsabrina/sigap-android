@@ -42,6 +42,7 @@ import fit.sigap.app.core.designsystem.component.ChoiceOption
 import fit.sigap.app.core.designsystem.component.DefinitionRow
 import fit.sigap.app.core.designsystem.component.Eyebrow
 import fit.sigap.app.core.designsystem.component.InlineError
+import fit.sigap.app.core.designsystem.component.NoticeStrip
 import fit.sigap.app.core.designsystem.component.MultiChoiceChips
 import fit.sigap.app.core.designsystem.component.RadioList
 import fit.sigap.app.core.designsystem.component.SigapButton
@@ -106,6 +107,7 @@ data class DocumentationUiState(
     val message: String? = null,
     val error: String? = null,
     val versionConflict: Boolean = false,
+    val draftedFromLog: Boolean = false,
 )
 
 interface DocumentationActions {
@@ -173,6 +175,13 @@ fun DocumentationScreen(
                     values = values.copy(answer = answer)
                     answerError = null
                 }
+            }
+            if (state.draftedFromLog) {
+                NoticeStrip(
+                    text = "Irama, tabel tindakan, waktu penghentian CPR, dan hasil diusulkan dari log tindakan " +
+                        "resusitasi (ketukan tim). Periksa dan ubah bila perlu sebelum menyimpan.",
+                    tone = colors.signalAmber,
+                )
             }
             CodeBlueFormEditor(state.incident, values.form) { values = values.copy(form = it) }
             SigapPanel {
@@ -409,6 +418,20 @@ private fun CodeBlueFormEditor(incident: Incident, form: CodeBlueForm, onChange:
             minLines = 2,
             maxLength = CodeBlueFormLimits.MAX_TEXT,
         )
+        SigapTextField(
+            label = "Alasan penghentian CPR",
+            value = form.cprStopReason,
+            onValueChange = { onChange(form.copy(cprStopReason = it)) },
+            singleLine = false,
+            minLines = 2,
+            maxLength = CodeBlueFormLimits.MAX_TEXT,
+        )
+        SigapTextField(
+            label = "Dokter verifikator",
+            value = form.verifiedBy,
+            onValueChange = { onChange(form.copy(verifiedBy = it)) },
+            maxLength = CodeBlueFormLimits.MAX_TEXT,
+        )
     }
 }
 
@@ -557,6 +580,8 @@ private fun ReadOnlyDocumentation(incident: Incident, values: DocumentationValue
         DefinitionRow("Waktu penghentian CPR", text(form.cprStoppedAt), dataValue = form.cprStoppedAt.isNotBlank())
         DefinitionRow("Hasil", form.outcome?.let { value -> Outcomes.first { it.value == value }.label } ?: "Tidak diisi")
         DefinitionRow("Dinyatakan meninggal oleh", text(form.declaredDeadBy))
+        DefinitionRow("Alasan penghentian CPR", text(form.cprStopReason))
+        DefinitionRow("Dokter verifikator", text(form.verifiedBy))
         HorizontalDivider(color = SigapTheme.colors.line200)
         DefinitionRow(
             "Respons selesai dijalankan",

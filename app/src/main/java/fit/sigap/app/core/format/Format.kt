@@ -40,3 +40,11 @@ fun formatDuration(from: Instant?, to: Instant?): String {
     val seconds = total % 60
     return if (hours > 0) "$hours j $minutes m" else "%02d:%02d".format(minutes, seconds)
 }
+
+fun formatElapsed(elapsed: Duration): String {
+    val total = elapsed.seconds.coerceAtLeast(0)
+    val hours = total / 3600
+    val minutes = (total % 3600) / 60
+    val seconds = total % 60
+    return if (hours > 0) "%d:%02d:%02d".format(hours, minutes, seconds) else "%02d:%02d".format(minutes, seconds)
+}

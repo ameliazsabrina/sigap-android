@@ -38,6 +38,8 @@ data class CodeBlueForm(
     val cprStoppedAt: String = "",
     val outcome: String? = null,
     val declaredDeadBy: String = "",
+    val cprStopReason: String = "",
+    val verifiedBy: String = "",
 )
 
 @Serializable

@@ -134,4 +134,10 @@ interface SigapApi {
         @Header(IDEMPOTENCY_KEY) key: String,
         @Body body: DocumentationRequest,
     ): Envelope<DocumentationDto>
+
+    @GET("incidents/{id}/resus-log")
+    suspend fun resusLog(@Path("id") incidentId: String, @Query("after_seq") afterSeq: Long?): Envelope<ResusLogDto>
+
+    @POST("incidents/{id}/resus-log")
+    suspend fun appendResusLog(@Path("id") incidentId: String, @Body body: ResusAppendRequest): Envelope<ResusLogDto>
 }

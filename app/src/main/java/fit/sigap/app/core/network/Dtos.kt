@@ -159,3 +159,36 @@ data class DocumentationRequest(
     val notes: String,
     val expectedVersion: Int? = null,
 )
+
+@Serializable
+data class ResusEntryDto(
+    val id: String,
+    val seq: Long,
+    val entryType: String,
+    val payload: JsonObject = JsonObject(emptyMap()),
+    val actorUserId: String,
+    val actorName: String? = null,
+    val tappedAt: String,
+    val tappedAtSuspect: Boolean = false,
+    val receivedAt: String,
+    val voidsEntryId: String? = null,
+)
+
+@Serializable
+data class ResusLogDto(
+    val entries: List<ResusEntryDto> = emptyList(),
+    val lastSeq: Long? = null,
+)
+
+@Serializable
+data class ResusEntryInput(
+    val id: String,
+    val entryType: String,
+    val payload: JsonObject,
+    val tappedAt: String,
+    val clockOffsetMs: Long,
+    val voidsEntryId: String? = null,
+)
+
+@Serializable
+data class ResusAppendRequest(val entries: List<ResusEntryInput>)

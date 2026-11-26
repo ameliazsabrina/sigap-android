@@ -3,6 +3,8 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.google.services)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.room)
 }
 
 android {
@@ -32,11 +34,14 @@ android {
                 .getOrElse("https://app-staging.sigap.fit")
             buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
             buildConfigField("String", "PAIR_ORIGIN", "\"$pairOrigin\"")
+            val resusLog = providers.gradleProperty("sigap.resusLog").getOrElse("false").toBoolean()
+            buildConfigField("boolean", "RESUS_LOG_ENABLED", resusLog.toString())
         }
         create("production") {
             dimension = "environment"
             buildConfigField("String", "API_BASE_URL", "\"https://api.sigap.fit/api/v1/\"")
             buildConfigField("String", "PAIR_ORIGIN", "\"https://app.sigap.fit\"")
+            buildConfigField("boolean", "RESUS_LOG_ENABLED", "false")
         }
     }
 
@@ -58,6 +63,10 @@ android {
         compose = true
         buildConfig = true
     }
+}
+
+room {
+    schemaDirectory("$projectDir/schemas")
 }
 
 dependencies {
@@ -84,6 +93,9 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)
     implementation(libs.firebase.installations)
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
     testImplementation(libs.junit)
     testImplementation(libs.okhttp.mockwebserver)
     testImplementation(libs.kotlinx.coroutines.test)

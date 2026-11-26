@@ -47,8 +47,9 @@ private fun retrofit(baseUrl: String, client: OkHttpClient): Retrofit = Retrofit
 
 fun createAuthApi(baseUrl: String): AuthApi = retrofit(baseUrl, baseClient().build()).create(AuthApi::class.java)
 
-fun createSigapApi(baseUrl: String, session: SessionRepository): SigapApi {
+fun createSigapApi(baseUrl: String, session: SessionRepository, clock: ServerClock? = null): SigapApi {
     val client = baseClient()
+        .apply { if (clock != null) addNetworkInterceptor(clock.interceptor) }
         .addInterceptor { chain ->
             val token = session.accessToken
             val request = if (token != null) chain.request().withBearer(token) else chain.request()
